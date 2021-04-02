@@ -1,9 +1,19 @@
+import * as proxyIntegration from './lib/proxyIntegration'
 import { ProxyIntegrationConfig, ProxyIntegrationEvent } from './lib/proxyIntegration'
+import * as sns from './lib/sns'
 import { SnsConfig, SnsEvent } from './lib/sns'
+import * as sqs from './lib/sqs'
 import { SqsConfig, SqsEvent } from './lib/sqs'
+import * as s3 from './lib/s3'
 import { S3Config, S3Event } from './lib/s3'
 import { Context } from 'aws-lambda'
 import { EventProcessor } from './lib/EventProcessor'
+
+const eventProcessorMapping = new Map<string, EventProcessor>()
+eventProcessorMapping.set('proxyIntegration', proxyIntegration)
+eventProcessorMapping.set('sns', sns)
+eventProcessorMapping.set('sqs', sqs)
+eventProcessorMapping.set('s3', s3)
 
 export interface RouteConfig {
   proxyIntegration?: ProxyIntegrationConfig
@@ -19,7 +29,6 @@ export type ErrorHandler<TContext extends Context = Context> = (error?: Error, e
 export type RouterEvent = ProxyIntegrationEvent | SnsEvent | SqsEvent | S3Event
 
 export const handler = (routeConfig: RouteConfig) => {
-  const eventProcessorMapping = extractEventProcessorMapping(routeConfig)
 
   return async <TContext extends Context> (event: RouterEvent, context: TContext) => {
     if (routeConfig.debug) {
@@ -61,19 +70,4 @@ export const handler = (routeConfig: RouteConfig) => {
     }
     throw 'No event processor found to handle this kind of event!'
   }
-}
-
-const extractEventProcessorMapping = (routeConfig: RouteConfig) => {
-  const processorMap = new Map<string, EventProcessor>()
-  for (const key of Object.keys(routeConfig)) {
-    if (key === 'debug' || key === 'onError') {
-      continue
-    }
-    try {
-      processorMap.set(key, require(`./lib/${key}`))
-    } catch (error) {
-      throw new Error(`The event processor '${key}', that is mentioned in the routerConfig, cannot be instantiated (${error.toString()})`)
-    }
-  }
-  return processorMap
 }
